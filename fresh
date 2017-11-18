@@ -45,13 +45,19 @@ def init():
 
 
 @cache.command()
-def list():
-    freshtools.cache.list()
+def status():
+    freshtools.cache.status()
 
 
 @cache.command()
-def status():
-    freshtools.cache.status()
+@click.argument('models', nargs=-1, required=False)
+def show(models):
+    if len(models) > 0:
+        models = freshtools.models.models_by_name(models)
+    else:
+        models = freshtools.models.ALL_MODELS
+
+    freshtools.cache.show(models)
 
 
 @cache.command()

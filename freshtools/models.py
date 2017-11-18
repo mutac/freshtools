@@ -1,5 +1,7 @@
+import datetime
 from peewee import *
-from refresh2.util import memoize, classproperty
+from playhouse.kv import PickledKeyStore
+from refresh2.util import memoize, classproperty, safe_get
 from exceptions import *
 from util import parse_date
 
@@ -9,7 +11,32 @@ def db():
     return SqliteDatabase('.freshtools.db')
 
 
+class MetaData(object):
+    metadata = PickledKeyStore(database=db())
+
+    @classmethod
+    def reset(cls):
+        for key in cls.metadata.keys():
+            del cls.metadata[key]
+
+    @classmethod
+    def update_last_pulled_time(cls, model, now=None):
+        if now is None:
+            now = datetime.datetime.now()
+
+        last = safe_get(cls.metadata, 'last_pulled_datetime', {})
+        last[model.__name__] = now
+        cls.metadata['last_pulled_datetime'] = last
+
+    @classmethod
+    def get_last_pulled_time(cls, model):
+        last_pull = safe_get(cls.metadata, 'last_pulled_datetime', {})
+        return safe_get(last_pull, model.__name__, None)
+
+
 class BaseModel(Model):
+    display_fields = []
+
     @classproperty
     def table_name(cls):
         return cls._meta.db_table
@@ -32,12 +59,20 @@ class BaseModel(Model):
             else:
                 return 0
 
+    def show(self, print_func):
+        for field, fmt in self.display_fields:
+            print_func(fmt % getattr(self, field))
+
     class Meta:
         database = db()
 
 
 class Account(BaseModel):
     id = CharField(unique=True, primary_key=True)
+
+    display_fields = [
+        ('id', 'Account ID: %s')
+    ]
 
     @classmethod
     def pull(cls, api):
@@ -51,11 +86,20 @@ class Account(BaseModel):
 
         cls.upsert(accounts)
 
+    def __repr__(self):
+        return str(self.id)
+
 
 class Business(BaseModel):
     id = IntegerField(primary_key=True)
     account = ForeignKeyField(Account)
     name = CharField(default='')
+
+    display_fields = [
+        ('id', 'Business ID: %s'),
+        ('account', 'Account: %s'),
+        ('name', 'Business Name: %s')
+    ]
 
     @classmethod
     def pull(cls, api):
@@ -70,6 +114,9 @@ class Business(BaseModel):
 
         cls.upsert(businesses)
 
+    def __repr__(self):
+        return self.name
+
 
 class Client(BaseModel):
     id = IntegerField(primary_key=True)
@@ -78,6 +125,17 @@ class Client(BaseModel):
     lname = CharField(default='')
     organization = CharField(default='')
     email = CharField(default='')
+
+    display_fields = [
+        ('id', 'Client ID: %s'),
+        ('account', 'Account: %s'),
+        ('organization', 'Organization: %s'),
+        ('contact', 'Contact: %s')
+    ]
+
+    @property
+    def contact(self):
+        return ' '.join([self.fname, self.lname, '<%s>' % self.email])
 
     @classmethod
     def get_the_one(cls, term):
@@ -104,12 +162,22 @@ class Client(BaseModel):
 
         cls.upsert(clients)
 
+    def __repr__(self):
+        return self.organization
+
 
 class Project(BaseModel):
     id = IntegerField(primary_key=True)
     business = ForeignKeyField(Business)
-    client_id = ForeignKeyField(Client)
+    client = ForeignKeyField(Client)
     title = CharField(default='')
+
+    display_fields = [
+        ('id', 'Project ID: %s'),
+        ('business', 'Business: %s'),
+        ('client', 'Client: %s'),
+        ('title', 'Project: %s'),
+    ]
 
     @classmethod
     def pull(cls, api):
@@ -121,17 +189,26 @@ class Project(BaseModel):
                     projects.append({
                         'id': project['id'],
                         'business': business.info['id'],
-                        'client_id': project['client_id'],
+                        'client': project['client_id'],
                         'title': project['title'],
                     })
 
         cls.upsert(projects)
+
+    def __repr__(self):
+        return self.title
 
 
 class Task(BaseModel):
     id = IntegerField(primary_key=True)
     name = CharField(default='')
     description = CharField(default='')
+
+    display_fields = [
+        ('id', 'Task ID: %s'),
+        ('name', 'Task: %s'),
+        ('description', 'Description: %s'),
+    ]
 
     @classmethod
     def pull(cls, api):
@@ -148,6 +225,9 @@ class Task(BaseModel):
                     })
 
         cls.upsert(tasks)
+
+    def __repr__(self):
+        return self.name
 
 
 class TimeEntry(BaseModel):
@@ -167,6 +247,15 @@ class TimeEntry(BaseModel):
     duration = IntegerField()
     billed = BooleanField()
     billable = BooleanField()
+
+    display_fields = [
+        ('id', 'TimeEntry ID: %s'),
+        ('client', 'Client: %s'),
+        ('project', 'Project: %s'),
+        ('task', 'Task: %s'),
+        ('created_at', 'Entered at: %s'),
+        ('duration', 'Duration (seconds): %s'),
+    ]
 
     @classmethod
     def pull(cls, api):
