@@ -44,8 +44,8 @@ def show(models):
 def pull(api, models):
     dep_order = model_dependency_order(models)
 
-    with db().atomic():
-        for model in dep_order:
+    for model in dep_order:
+        with db().atomic():
             if not model.table_exists():
                 create_tables([model])
 

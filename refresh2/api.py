@@ -183,14 +183,15 @@ class Api(object):
         return BusinessApi(self, info)
 
     def get(self, url, **kwargs):
-        return self.session.get(url, params=kwargs).json()
+        res = self.session.get(url, params=kwargs)
+        return res.json()
 
     @classmethod
     def update_headers(cls, session):
         session.headers.update({
             'Api-Version': VERSION,
             'User-Agent': USER_AGENT,
-            'Content-Type': 'application/json',
+            #'Content-Type': 'application/json',
         })
 
     def _business_memberships(self):
