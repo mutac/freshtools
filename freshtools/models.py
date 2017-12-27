@@ -3,7 +3,7 @@ from peewee import *
 from playhouse.kv import PickledKeyStore
 from refresh2.util import memoize, classproperty, safe_get
 from exceptions import *
-from util import parse_date
+from util import local_from_utc_datetime, week_ending_datetime
 
 
 @memoize
@@ -237,12 +237,16 @@ class TimeEntry(BaseModel):
     task = ForeignKeyField(Task, null=True)
     created_at = DateTimeField()
     started_at = DateTimeField()
-    
+
+    #
     # Sqlite does not store dates natively, which means that 
     # date parts cannot be extracted by certain query constructs.
-    # Store the day date part separately here.
+    # Store date parts separately.
+    #
     created_at_date = DateField()
     started_at_date = DateField()
+    created_at_week_ending_date = DateField()
+    started_at_week_ending_date = DateField()
 
     duration = IntegerField()
     billed = BooleanField()
@@ -265,8 +269,14 @@ class TimeEntry(BaseModel):
             for page in business.time_entry_pages():
                 for entry in page:
 
-                    created_at = parse_date(entry['created_at'])
-                    started_at = parse_date(entry['started_at'])
+                    created_at = local_from_utc_datetime(entry['created_at'])
+                    started_at = local_from_utc_datetime(entry['started_at'])
+
+                    created_at_date = created_at.date()
+                    started_at_date = started_at.date()
+
+                    created_at_week_ending_date = week_ending_datetime(created_at_date).date()
+                    started_at_week_ending_date = week_ending_datetime(started_at_date).date()
 
                     entries.append({
                         'id': entry['id'],
@@ -274,9 +284,11 @@ class TimeEntry(BaseModel):
                         'project': entry['project_id'],
                         'task': entry['task_id'],
                         'created_at': created_at,
-                        'created_at_date': created_at.date(),
+                        'created_at_date': created_at_date,
+                        'created_at_week_ending_date': created_at_week_ending_date,
                         'started_at': started_at,
-                        'started_at_date': started_at.date(),
+                        'started_at_date': started_at_date,
+                        'started_at_week_ending_date': started_at_week_ending_date,
                         'duration': entry['duration'],
                         'billed': entry['billed'],
                         'billable': entry['billable'],

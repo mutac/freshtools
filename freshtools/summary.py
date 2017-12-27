@@ -3,9 +3,8 @@ import collections
 from peewee import *
 from refresh2.util import memoize
 from models import Account, Business, Client, Project, Task, TimeEntry
-from util import parse_date
 from exceptions import *
-
+from util import week_starting_datetime, week_ending_datetime
 
 class Summary(object):
     def __init__(self):
@@ -57,12 +56,12 @@ class TaskTimeEntrySummaryMixin(object):
 
         if self.start_date is not None:
             qs = qs.where(
-                TimeEntry.created_at >= parse_date(self.start_date)
+                TimeEntry.created_at >= self.start_date
             )
 
         if self.end_date is not None:
             qs = qs.where(
-                TimeEntry.created_at <= parse_date(self.end_date)
+                TimeEntry.created_at <= self.end_date
             )
 
         return qs
@@ -145,3 +144,29 @@ class DaysByClientTask(TaskTimeEntrySummaryMixin, Summary):
                     task.total_time / 60.0 / 60.0))
 
         return os.linesep.join(formatted)
+
+
+class WeeksByClientProject(TaskTimeEntrySummaryMixin, Summary):
+    aggregate_by = (
+        TimeEntry.client,
+        TimeEntry.project,
+        TimeEntry.created_at_week_ending_date
+    )
+
+    def __init__(self, client=None, start_date=None, end_date=None):
+        self.client = client
+
+        # Expand search ROI along week boundaries
+        self.start_date = week_starting_datetime(start_date)
+        self.end_date = week_ending_datetime(end_date)
+
+    def format_title(self, row):
+        return row.project.title
+
+    def format_row(self, row):
+        return """Client: %s
+Total Time: %0.2f hours
+Week Ending: %s""" % (
+            row.client.organization,
+            row.total_time / 60.0 / 60.0,
+            row.created_at_week_ending_date)

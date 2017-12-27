@@ -1,12 +1,17 @@
 #!/usr/bin/env python
 
 import click
+import datetime
 import logging
 import settings
 import freshtools.cache
 import freshtools.summary
 import freshtools.models
+from freshtools.parameters import DateTimeParameter
 from freshtools.log import log_to_stdout
+from freshtools.util import (todays_date, yesterdays_date, this_weeks_date,
+    last_weeks_date, day_starting_and_ending_datetime,
+    week_starting_and_ending_datetime)
 from refresh2.auth import DeveloperWebserverFlow, TokenStore, run_flow
 from refresh2.api import Api
 
@@ -82,8 +87,8 @@ def summarize():
 
 @summarize.command()
 @click.option('--client', default=None, help='Client name')
-@click.option('--start', default=None, help='Start date')
-@click.option('--end', default=None, help='End date')
+@click.option('--start', type=DateTimeParameter(), default=None, help='Start date')
+@click.option('--end', type=DateTimeParameter(), default=None, help='End date')
 def tasks_by_client(client, start, end):
     client_object = None
 
@@ -101,8 +106,8 @@ def tasks_by_client(client, start, end):
 
 @summarize.command()
 @click.option('--client', default=None, help='Client name')
-@click.option('--start', default=None, help='Start date')
-@click.option('--end', default=None, help='End date')
+@click.option('--start', type=DateTimeParameter(), default=None, help='Start date')
+@click.option('--end', type=DateTimeParameter(), default=None, help='End date')
 def days_by_client_task(client, start, end):
     client_object = None
 
@@ -115,6 +120,53 @@ def days_by_client_task(client, start, end):
         end_date=end
     )
 
+    summary.print_report()
+
+
+@summarize.command()
+@click.option('--client', default=None, help='Client name')
+@click.option('--start', type=DateTimeParameter(), default=None, help='Start date')
+@click.option('--end', type=DateTimeParameter(), default=None, help='End date')
+def weeks_by_client_project(client, start, end):
+    client_object = None
+
+    if client is not None:
+        client_object = freshtools.models.Client.get_the_one(client)
+
+    summary = freshtools.summary.WeeksByClientProject(
+        client=client_object,
+        start_date=start,
+        end_date=end
+    )
+
+    summary.print_report()
+
+
+@summarize.command()
+def today():
+    start, end = day_starting_and_ending_datetime(todays_date())
+    summary = freshtools.summary.DaysByClientTask(start_date=start, end_date=end)
+    summary.print_report()
+
+
+@summarize.command()
+def yesterday():
+    start, end = day_starting_and_ending_datetime(yesterdays_date())
+    summary = freshtools.summary.DaysByClientTask(start_date=start, end_date=end)
+    summary.print_report()
+
+
+@summarize.command()
+def this_week():
+    start, end = week_starting_and_ending_datetime(this_weeks_date())
+    summary = freshtools.summary.WeeksByClientProject(start_date=start, end_date=end)
+    summary.print_report()
+
+
+@summarize.command()
+def last_week():
+    start, end = week_starting_and_ending_datetime(last_weeks_date())
+    summary = freshtools.summary.WeeksByClientProject(start_date=start, end_date=end)
     summary.print_report()
 
 
