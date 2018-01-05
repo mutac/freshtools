@@ -106,13 +106,14 @@ def todays_date():
     return beginning_of_day(datetime.date.today())
 
 
-def yesterdays_date():
-    return beginning_of_day(todays_date() - datetime.timedelta(days=1))
+def n_days_ago_date(days_ago):
+    return beginning_of_day(todays_date() - datetime.timedelta(days=days_ago))
 
 
 def this_weeks_date():
     return beginning_of_day(week_ending_datetime(todays_date()))
 
 
-def last_weeks_date():
-    return beginning_of_day(week_ending_datetime(todays_date() - datetime.timedelta(days=7)))
+def n_weeks_ago_date(weeks_ago):
+    days_ago = weeks_ago * 7
+    return beginning_of_day(week_ending_datetime(n_days_ago_date(days_ago)))
