@@ -108,13 +108,13 @@ def tasks_by_client(client, start, end):
 @click.option('--client', default=None, help='Client name')
 @click.option('--start', type=DateTimeParameter(), default=None, help='Start date')
 @click.option('--end', type=DateTimeParameter(), default=None, help='End date')
-def days_by_client_task(client, start, end):
+def days_by_client_project_task(client, start, end):
     client_object = None
 
     if client is not None:
         client_object = freshtools.models.Client.get_the_one(client)
 
-    summary = freshtools.summary.DaysByClientTask(
+    summary = freshtools.summary.DaysByClientProjectTask(
         client=client_object,
         start_date=start,
         end_date=end
@@ -145,21 +145,21 @@ def weeks_by_client_project(client, start, end):
 @summarize.command()
 def today():
     start, end = day_starting_and_ending_datetime(todays_date())
-    freshtools.summary.DaysByClientTask(
+    freshtools.summary.DaysByClientProjectTask(
         start_date=start, end_date=end).print_report()
 
 
 @summarize.command()
 def yesterday():
     start, end = day_starting_and_ending_datetime(n_days_ago_date(1))
-    freshtools.summary.DaysByClientTask(
+    freshtools.summary.DaysByClientProjectTask(
         start_date=start, end_date=end).print_report()
 
 
 @summarize.command()
 def two_days_ago():
     start, end = day_starting_and_ending_datetime(n_days_ago_date(2))
-    freshtools.summary.DaysByClientTask(
+    freshtools.summary.DaysByClientProjectTask(
         start_date=start, end_date=end).print_report()
 
 

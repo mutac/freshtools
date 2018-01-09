@@ -1,8 +1,51 @@
 import itertools
+import collections
 import datetime
 from dateutil.parser import parse as dateutil_parse_date
 from dateutil import tz
 from peewee import *
+
+
+def head(v):
+    if isinstance(v, list):
+        return v[0]
+    elif isinstance(v, dict):
+        return v.itervalues().next()
+    elif isinstance(v, basestring):
+        return v[0]
+    else:
+        return v
+
+
+def lookahead(iterable):
+    it = iter(iterable)
+    last = next(it)
+    for val in it:
+        yield last, True
+        last = val
+    yield last, False
+
+
+def coalate(rows, by=[]):
+    if not by:
+        return rows
+
+    coalated = collections.OrderedDict()
+
+    for row in rows:
+        _coalated = coalated
+
+        for key, more in lookahead(by):
+            key_value = getattr(row, key)
+
+            if key_value not in _coalated:
+                _coalated[key_value] = [] if not more else collections.OrderedDict()
+
+            _coalated = _coalated[key_value]
+
+        _coalated.append(row)
+
+    return coalated
 
 
 def get_immediate_dependencies(model):

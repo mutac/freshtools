@@ -4,7 +4,8 @@ from peewee import *
 from refresh2.util import memoize
 from models import Account, Business, Client, Project, Task, TimeEntry
 from exceptions import *
-from util import week_starting_datetime, week_ending_datetime
+from util import week_starting_datetime, week_ending_datetime, head, coalate
+
 
 class Summary(object):
     def __init__(self):
@@ -92,11 +93,12 @@ Last Entered: %s""" % (
             row.last_date)
 
 
-class DaysByClientTask(TaskTimeEntrySummaryMixin, Summary):
+class DaysByClientProjectTask(TaskTimeEntrySummaryMixin, Summary):
     aggregate_by = (
         Task.id,
+        TimeEntry.project,
+        TimeEntry.client,
         TimeEntry.created_at_date,
-        TimeEntry.client
     )
 
     def __init__(self, client=None, start_date=None, end_date=None):
@@ -105,43 +107,38 @@ class DaysByClientTask(TaskTimeEntrySummaryMixin, Summary):
         self.end_date = end_date
 
     def query_set(self):
-        tasks = super(DaysByClientTask, self).query_set()
+        tasks = super(DaysByClientProjectTask, self).query_set()
 
         #
         # Builds a dictionary, of dictionaries, of lists...
         #
-        # record[day][client][taskN]
+        # record[day][client][project][taskN]
         #
 
-        day_client_tasks = collections.OrderedDict()
-
-        for task in tasks:
-            if task.created_at_date not in day_client_tasks:
-                day_client_tasks[task.created_at_date] = collections.OrderedDict()
-
-            if task.client not in day_client_tasks[task.created_at_date]:
-                day_client_tasks[task.created_at_date][task.client] = []
-
-            day_client_tasks[task.created_at_date][task.client].append(task)
-
-        return day_client_tasks.values()
+        day_client_project_tasks = coalate(
+            tasks, by=['created_at_date', 'client', 'project'])
+        return day_client_project_tasks.values()
 
     def format_title(self, row):
-        return str(row.itervalues().next()[0].created_at_date)
+        return str(head(head(head(row))).created_at_date)
 
     def format_row(self, row):
         formatted = []
 
-        for client_tasks in row.values():
-            formatted.append('  Client: %s' %
-                             client_tasks[0].client.organization)
+        for client_project_tasks in row.values():
+            task = head(head(head(client_project_tasks)))
+            formatted.append('  Client: %s' % task.client.organization)
 
-            for task in client_tasks:
-                formatted.append("""    Task: %s
-    Total Time: %0.2f hours
+            for project_tasks in client_project_tasks.values():
+                task = head(head(project_tasks))
+                formatted.append('    Project: %s' % task.project.title)
+
+                for task in project_tasks:
+                    formatted.append("""      Task: %s
+      Total Time: %0.2f hours
 """ % (
-                    task.task.name,
-                    task.total_time / 60.0 / 60.0))
+                        task.task.name,
+                        task.total_time / 60.0 / 60.0))
 
         return os.linesep.join(formatted)
 
