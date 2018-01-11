@@ -109,12 +109,6 @@ class DaysByClientProjectTask(TaskTimeEntrySummaryMixin, Summary):
     def query_set(self):
         tasks = super(DaysByClientProjectTask, self).query_set()
 
-        #
-        # Builds a dictionary, of dictionaries, of lists...
-        #
-        # record[day][client][project][taskN]
-        #
-
         day_client_project_tasks = coalate(
             tasks, by=['created_at_date', 'client', 'project'])
         return day_client_project_tasks.values()
@@ -157,13 +151,29 @@ class WeeksByClientProject(TaskTimeEntrySummaryMixin, Summary):
         self.start_date = week_starting_datetime(start_date)
         self.end_date = week_ending_datetime(end_date)
 
+    def query_set(self):
+        tasks = super(WeeksByClientProject, self).query_set()
+
+        week_client_project_tasks = coalate(
+            tasks, by=['created_at_week_ending_date', 'client', 'project'])
+        return week_client_project_tasks.values()
+
     def format_title(self, row):
-        return row.project.title
+        return 'Week Ending: ' + str(head(head(head(row))).created_at_week_ending_date)
 
     def format_row(self, row):
-        return """Client: %s
-Total Time: %0.2f hours
-Week Ending: %s""" % (
-            row.client.organization,
-            row.total_time / 60.0 / 60.0,
-            row.created_at_week_ending_date)
+        formatted = []
+
+        for client_project_weeks in row.values():
+            week = head(head(head(client_project_weeks)))
+            formatted.append('  Client: %s' % week.client.organization)
+
+            for project_weeks in client_project_weeks.values():
+                week = head(head(project_weeks))
+                formatted.append("""    Project: %s
+      Total Time: %0.2f hours
+""" % (
+                    week.project.title,
+                    week.total_time / 60.0 / 60.0))
+
+        return os.linesep.join(formatted)

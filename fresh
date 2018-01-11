@@ -7,7 +7,7 @@ import settings
 import freshtools.cache
 import freshtools.summary
 import freshtools.models
-from freshtools.parameters import DateTimeParameter
+from freshtools.command import DateTimeParameter, AliasedGroup
 from freshtools.log import log_to_stdout
 from freshtools.util import (todays_date, n_days_ago_date, this_weeks_date,
                              n_weeks_ago_date, day_starting_and_ending_datetime,
@@ -80,7 +80,7 @@ def pull(models):
 # Summarization commands
 #
 
-@cli.group()
+@cli.group(cls=AliasedGroup)
 def summarize():
     pass
 
@@ -104,7 +104,7 @@ def tasks_by_client(client, start, end):
     summary.print_report()
 
 
-@summarize.command()
+@summarize.command(aliases=['days'])
 @click.option('--client', default=None, help='Client name')
 @click.option('--start', type=DateTimeParameter(), default=None, help='Start date')
 @click.option('--end', type=DateTimeParameter(), default=None, help='End date')
@@ -123,7 +123,7 @@ def days_by_client_project_task(client, start, end):
     summary.print_report()
 
 
-@summarize.command()
+@summarize.command(aliases=['weeks'])
 @click.option('--client', default=None, help='Client name')
 @click.option('--start', type=DateTimeParameter(), default=None, help='Start date')
 @click.option('--end', type=DateTimeParameter(), default=None, help='End date')
