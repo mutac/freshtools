@@ -1,5 +1,6 @@
 import click
-from util import parse_datetime
+from date import parse_datetime
+
 
 class ParsedParameter(click.ParamType):
     name = 'date'

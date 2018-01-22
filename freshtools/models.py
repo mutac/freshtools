@@ -3,7 +3,7 @@ from peewee import *
 from playhouse.kv import PickledKeyStore
 from refresh2.util import memoize, classproperty, safe_get
 from exceptions import *
-from util import local_from_utc_datetime, week_ending_datetime
+from date import local_from_utc_datetime, week_ending_datetime
 
 
 @memoize
@@ -11,8 +11,19 @@ def db():
     return SqliteDatabase('.freshtools.db')
 
 
+def get_the_one_or_fail(model, **kwargs):
+    try:
+        return model.get_the_one(**kwargs)
+    except model.DoesNotExist, ex:
+        raise model.DoesNotExist('Could not find %s "%s"' % (model.__name__, str(ex)))
+
+
 class MetaData(object):
     metadata = PickledKeyStore(database=db())
+
+    @classmethod
+    def table_exists(cls):
+        return cls.metadata.model.table_exists()
 
     @classmethod
     def reset(cls):
@@ -42,16 +53,6 @@ class BaseModel(Model):
         return cls._meta.db_table
 
     @classmethod
-    def pull(cls, api):
-        raise ImproperlyConfiguredException()
-
-    @classmethod
-    def insert(cls, data):
-        with db().atomic():
-            if len(data) > 0:
-                cls.insert_many(data).execute()
-
-    @classmethod
     def upsert(cls, data):
         with db().atomic():
             if len(data) > 0:
@@ -62,6 +63,10 @@ class BaseModel(Model):
     def show(self, print_func):
         for field, fmt in self.display_fields:
             print_func(fmt % getattr(self, field))
+
+    @classmethod
+    def get_the_one(cls, **kwargs):
+        raise cls.DoesNotExist();
 
     class Meta:
         database = db()
@@ -138,10 +143,13 @@ class Client(BaseModel):
         return ' '.join([self.fname, self.lname, '<%s>' % self.email])
 
     @classmethod
-    def get_the_one(cls, term):
-        return cls.get(
-            cls.organization == term
-        )
+    def get_the_one(cls, **kwargs):
+        if 'client' in kwargs:
+            return cls.get(
+                cls.organization**kwargs['client']
+            )
+        else:
+            raise cls.DoesNotExist('Must specify search criteria')
 
     @classmethod
     def pull(cls, api):
@@ -252,6 +260,8 @@ class TimeEntry(BaseModel):
     billed = BooleanField()
     billable = BooleanField()
 
+    note = TextField(null=True)
+
     display_fields = [
         ('id', 'TimeEntry ID: %s'),
         ('client', 'Client: %s'),
@@ -292,9 +302,36 @@ class TimeEntry(BaseModel):
                         'duration': entry['duration'],
                         'billed': entry['billed'],
                         'billable': entry['billable'],
+                        'note': entry['note']
                     })
 
         cls.upsert(entries)
+
+
+class LogDestination(BaseModel):
+    destination = CharField(index=True)
+
+    display_fields = [
+        ('destination', '%s')
+    ]
+
+    @classmethod
+    def get_the_one(cls, term):
+        return cls.get(
+            cls.destination == term
+        )
+
+class TaskLog(BaseModel):
+    """
+    This is not an actual freshbooks model, it denotes whether
+    or not a TimeEntry has been logged in another, external system.
+    Useful for auditing billable hours between freshbooks and
+    another system.
+    """
+    time_entry = ForeignKeyField(TimeEntry)
+    log_destination = ForeignKeyField(LogDestination)
+    created_at = DateTimeField(default=datetime.datetime.now)
+    created_at_date = DateField(default=datetime.datetime.now)
 
 
 ALL_MODELS = [
@@ -304,6 +341,8 @@ ALL_MODELS = [
     Client,
     Account,
     Business,
+    LogDestination,
+    TaskLog,
 ]
 
 

@@ -7,9 +7,12 @@ import settings
 import freshtools.cache
 import freshtools.summary
 import freshtools.models
+
+from freshtools.entries import time_entry_window
 from freshtools.command import DateTimeParameter, AliasedGroup
-from freshtools.log import log_to_stdout
-from freshtools.util import (todays_date, n_days_ago_date, this_weeks_date,
+from freshtools.log import add_destination, list_destinations, remove_destination, time_entries, log_entries
+from freshtools.console import log_to_stdout
+from freshtools.date import (todays_date, n_days_ago_date, this_weeks_date,
                              n_weeks_ago_date, day_starting_and_ending_datetime,
                              week_starting_and_ending_datetime)
 from refresh2.auth import DeveloperWebserverFlow, TokenStore, run_flow
@@ -24,6 +27,10 @@ def get_freshbooks_api(client_id, client_secret, store):
     return api
 
 
+def printer(s):
+    print s
+
+
 @click.group()
 @click.option('-v', '--verbose', count=True)
 def cli(verbose):
@@ -35,26 +42,26 @@ def cli(verbose):
     log_to_stdout(level)
 
 
-#
-# Cache commands
-#
-
-@cli.group()
-def cache():
-    pass
-
-
-@cache.command()
+@cli.command()
 def init():
-    freshtools.cache.initialize()
+    do_it = False
+
+    if freshtools.cache.exists():
+        do_it = click.prompt(
+            'Are you sure you want to re-initialize your workspace?', type=bool)
+    else:
+        do_it = True
+
+    if do_it:
+        freshtools.cache.initialize()
 
 
-@cache.command()
+@cli.command()
 def status():
     freshtools.cache.status()
 
 
-@cache.command()
+@cli.command()
 @click.argument('models', nargs=-1, required=False)
 def show(models):
     if len(models) > 0:
@@ -65,7 +72,7 @@ def show(models):
     freshtools.cache.show(models)
 
 
-@cache.command()
+@cli.command()
 @click.argument('models', nargs=-1, required=False)
 def pull(models):
     if len(models) > 0:
@@ -90,18 +97,8 @@ def summarize():
 @click.option('--start', type=DateTimeParameter(), default=None, help='Start date')
 @click.option('--end', type=DateTimeParameter(), default=None, help='End date')
 def tasks_by_client(client, start, end):
-    client_object = None
-
-    if client is not None:
-        client_object = freshtools.models.Client.get_the_one(client)
-
-    summary = freshtools.summary.TasksByClient(
-        client=client_object,
-        start_date=start,
-        end_date=end
-    )
-
-    summary.print_report()
+    window = time_entry_window(client, start, end)
+    freshtools.summary.TasksByClient(window).print_report()
 
 
 @summarize.command(aliases=['days'])
@@ -109,18 +106,8 @@ def tasks_by_client(client, start, end):
 @click.option('--start', type=DateTimeParameter(), default=None, help='Start date')
 @click.option('--end', type=DateTimeParameter(), default=None, help='End date')
 def days_by_client_project_task(client, start, end):
-    client_object = None
-
-    if client is not None:
-        client_object = freshtools.models.Client.get_the_one(client)
-
-    summary = freshtools.summary.DaysByClientProjectTask(
-        client=client_object,
-        start_date=start,
-        end_date=end
-    )
-
-    summary.print_report()
+    window = time_entry_window(client, start, end)
+    freshtools.summary.DaysByClientProjectTask(window).print_report()
 
 
 @summarize.command(aliases=['weeks'])
@@ -128,64 +115,112 @@ def days_by_client_project_task(client, start, end):
 @click.option('--start', type=DateTimeParameter(), default=None, help='Start date')
 @click.option('--end', type=DateTimeParameter(), default=None, help='End date')
 def weeks_by_client_project(client, start, end):
-    client_object = None
-
-    if client is not None:
-        client_object = freshtools.models.Client.get_the_one(client)
-
-    summary = freshtools.summary.WeeksByClientProject(
-        client=client_object,
-        start_date=start,
-        end_date=end
-    )
-
-    summary.print_report()
+    window = time_entry_window(client, start, end)
+    freshtools.summary.WeeksByClientProject(window).print_report()
 
 
 @summarize.command()
 def today():
     start, end = day_starting_and_ending_datetime(todays_date())
-    freshtools.summary.DaysByClientProjectTask(
-        start_date=start, end_date=end).print_report()
+    window = time_entry_window(start_date=start, end_date=end)
+    freshtools.summary.DaysByClientProjectTask(window).print_report()
 
 
 @summarize.command()
 def yesterday():
     start, end = day_starting_and_ending_datetime(n_days_ago_date(1))
-    freshtools.summary.DaysByClientProjectTask(
-        start_date=start, end_date=end).print_report()
+    window = time_entry_window(start_date=start, end_date=end)
+    freshtools.summary.DaysByClientProjectTask(window).print_report()
 
 
 @summarize.command()
 def two_days_ago():
     start, end = day_starting_and_ending_datetime(n_days_ago_date(2))
-    freshtools.summary.DaysByClientProjectTask(
-        start_date=start, end_date=end).print_report()
+    window = time_entry_window(start_date=start, end_date=end)
+    freshtools.summary.DaysByClientProjectTask(window).print_report()
 
 
 @summarize.command()
 def this_week():
     start, end = week_starting_and_ending_datetime(this_weeks_date())
-    freshtools.summary.WeeksByClientProject(
-        start_date=start, end_date=end).print_report()
+    window = time_entry_window(start_date=start, end_date=end)
+    freshtools.summary.WeeksByClientProject(window).print_report()
 
 
 @summarize.command()
 def last_week():
     start, end = week_starting_and_ending_datetime(n_weeks_ago_date(1))
-    freshtools.summary.WeeksByClientProject(
-        start_date=start, end_date=end).print_report()
+    window = time_entry_window(start_date=start, end_date=end)
+    freshtools.summary.WeeksByClientProject(window).print_report()
 
 
 @summarize.command()
 def two_weeks_ago():
     start, end = week_starting_and_ending_datetime(n_weeks_ago_date(2))
-    freshtools.summary.WeeksByClientProject(
-        start_date=start, end_date=end).print_report()
+    window = time_entry_window(start_date=start, end_date=end)
+    freshtools.summary.WeeksByClientProject(window).print_report()
+
+
+#
+# Time logging
+#
+
+@cli.group()
+def log():
+    pass
+
+
+@log.command()
+@click.option('--client', default=None, help='Client name')
+@click.option('--start', type=DateTimeParameter(), default=None, help='Start date')
+@click.option('--end', type=DateTimeParameter(), default=None, help='End date')
+@click.option('--to', required=True, help='Destination log name')
+def day(client, start, end, to):
+    if client is not None:
+        client = get_the_one_or_fail(freshtools.models.Client, client)
+
+    to = get_the_one_or_fail(freshtools.models.LogDestination, to)
+
+    entries = time_entries(client, start, end)
+    log_entries(entries, to)
+
+
+@log.command()
+@click.option('--entry', required=True, help='TimeEntry ID to log')
+@click.option('--to', required=True, help='Destination log name')
+def entry(entry, to):
+    entry = get_the_one_or_fail(freshtools.models.TimeEntry, entry)
+    to = get_the_one_or_fail(freshtools.models.LogDestination, to)
+
+    log_entries(entry, to)
+
+
+@log.group()
+def destination():
+    pass
+
+
+@destination.command()
+def list():
+    list_destinations(printer)
+
+
+@destination.command()
+@click.argument('destination')
+def add(destination):
+    add_destination(destination)
+
+
+@destination.command()
+@click.argument('destination')
+def remove(destination):
+    remove_destination(destination)
+
 
 #
 # Main
 #
+
 
 store = TokenStore('.credentials')
 api = get_freshbooks_api(

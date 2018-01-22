@@ -4,7 +4,7 @@ from peewee import *
 from refresh2.util import memoize
 from models import Account, Business, Client, Project, Task, TimeEntry
 from exceptions import *
-from util import week_starting_datetime, week_ending_datetime, head, coalate
+from util import head, coalate
 
 
 class Summary(object):
@@ -50,19 +50,19 @@ class TaskTimeEntrySummaryMixin(object):
             SQL('last_date')
         )
 
-        if self.client is not None:
+        if self.window.client is not None:
             qs = qs.where(
-                TimeEntry.client == self.client
+                TimeEntry.client == self.window.client
             )
 
-        if self.start_date is not None:
+        if self.window.start_date is not None:
             qs = qs.where(
-                TimeEntry.created_at >= self.start_date
+                TimeEntry.created_at >= self.window.start_date
             )
 
-        if self.end_date is not None:
+        if self.window.end_date is not None:
             qs = qs.where(
-                TimeEntry.created_at <= self.end_date
+                TimeEntry.created_at <= self.window.end_date
             )
 
         return qs
@@ -74,10 +74,8 @@ class TasksByClient(TaskTimeEntrySummaryMixin, Summary):
         TimeEntry.client
     )
 
-    def __init__(self, client=None, start_date=None, end_date=None):
-        self.client = client
-        self.start_date = start_date
-        self.end_date = end_date
+    def __init__(self, time_entry_window=None):
+        self.window = time_entry_window
 
     def format_title(self, row):
         return row.task.name
@@ -101,10 +99,8 @@ class DaysByClientProjectTask(TaskTimeEntrySummaryMixin, Summary):
         TimeEntry.created_at_date,
     )
 
-    def __init__(self, client=None, start_date=None, end_date=None):
-        self.client = client
-        self.start_date = start_date
-        self.end_date = end_date
+    def __init__(self, time_entry_window=None):
+        self.window = time_entry_window
 
     def query_set(self):
         tasks = super(DaysByClientProjectTask, self).query_set()
@@ -130,9 +126,11 @@ class DaysByClientProjectTask(TaskTimeEntrySummaryMixin, Summary):
                 for task in project_tasks:
                     formatted.append("""      Task: %s
       Total Time: %0.2f hours
+      Billed: %s
 """ % (
                         task.task.name,
-                        task.total_time / 60.0 / 60.0))
+                        task.total_time / 60.0 / 60.0,
+                        'Yes' if task.billed else 'No'))
 
         return os.linesep.join(formatted)
 
@@ -144,12 +142,8 @@ class WeeksByClientProject(TaskTimeEntrySummaryMixin, Summary):
         TimeEntry.created_at_week_ending_date
     )
 
-    def __init__(self, client=None, start_date=None, end_date=None):
-        self.client = client
-
-        # Expand search ROI along week boundaries
-        self.start_date = week_starting_datetime(start_date)
-        self.end_date = week_ending_datetime(end_date)
+    def __init__(self, time_entry_window=None):
+        self.window = time_entry_window.aligned_to_week_boundaries()
 
     def query_set(self):
         tasks = super(WeeksByClientProject, self).query_set()

@@ -1,24 +1,42 @@
-import logging
-import sys
-
-LOGGER_NAME = 'freshtools'
-
-def get_logger():
-    return logging.getLogger(LOGGER_NAME)
+from freshtools.models import LogDestination, TaskLog, TimeEntry
 
 
-def log_to_stdout(level=logging.INFO):
-    if level == logging.DEBUG:
-        debug_formatter = logging.Formatter('[%(asctime)s]: %(message)s')
-        stream = logging.StreamHandler(sys.stdout)
-        stream.setFormatter(debug_formatter)
-    else:
-        info_formatter = logging.Formatter('%(message)s')
-        stream = logging.StreamHandler(sys.stdout)
-        stream.setFormatter(info_formatter)
-    
-    logger = logging.getLogger(LOGGER_NAME)
-    logger.addHandler(stream)
-    logger.setLevel(level)
+def add_destination(destination):
+    LogDestination.create(destination=destination)
 
-    return logger
+
+def remove_destination(destination):
+    LogDestination.delete(
+        LogDestination.get(destination=destination)
+    )
+
+
+def list_destinations(print_func):
+    for dest in  LogDestination.select():
+        print_func(dest.destination)
+
+
+def log_entries(time_entries, destination):
+    for entry in time_entries:
+        TaskLog.create(time_entry=entry, log_destination=destination)
+
+
+def time_entries(client, start_date, end_date):
+    qs = TimeEntry.select()
+
+    if client is not None:
+        qs = qs.where(
+            TimeEntry.client == client
+        )
+
+    if start_date is not None:
+        qs = qs.where(
+            TimeEntry.created_at >= start_date
+        )
+
+    if end_date is not None:
+        qs = qs.where(
+            TimeEntry.created_at <= end_date
+        )
+
+    return qs

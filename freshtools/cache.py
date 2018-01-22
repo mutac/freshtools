@@ -1,10 +1,14 @@
 from peewee import DoesNotExist
-from log import get_logger
+from console import get_logger
 from models import ALL_MODELS, db, MetaData
 from util import model_dependency_order, create_tables, drop_tables
 
 
 logger = get_logger()
+
+
+def exists():
+    return MetaData.table_exists()
 
 
 def initialize():
@@ -17,13 +21,14 @@ def initialize():
 
 def status():
     for model in ALL_MODELS:
-        logger.info('%s: %s' % (
-            model.__name__,
-            '%d records.  (Last updated %s)' % (
-                model.select().wrapped_count(),
-                MetaData.get_last_pulled_time(model)
-            ) if model.table_exists() else ('empty', 'never')
-        ))
+
+        last_pulled = MetaData.get_last_pulled_time(model)
+
+        info = '%s' % model.select().wrapped_count()
+        if last_pulled is not None:
+            info += ' (last updated %s)' % last_pulled
+
+        logger.info('%s: %s' % (model.__name__, info))
 
 
 def show(models):
@@ -49,8 +54,9 @@ def pull(api, models):
             if not model.table_exists():
                 create_tables([model])
 
-            logger.info('Caching: %s' % model.__name__)
-            model.pull(api)
-            logger.info('   Records: %s' % model.select().count())
+            if hasattr(model, 'pull'):
+                logger.info('Caching: %s' % model.__name__)
+                model.pull(api)
+                logger.info('   Records: %s' % model.select().count())
 
-            MetaData.update_last_pulled_time(model)
+                MetaData.update_last_pulled_time(model)
