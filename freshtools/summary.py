@@ -4,7 +4,7 @@ from peewee import *
 from refresh2.util import memoize
 from models import Account, Business, Client, Project, Task, TimeEntry
 from exceptions import *
-from util import head, coalate
+from util import head, coalate, currency
 
 
 class Summary(object):
@@ -20,16 +20,16 @@ class Summary(object):
     def format_row(self, row):
         raise ImproperlyConfiguredException()
 
-    def print_report(self):
+    def print_report(self, printer):
         for row in self.query_set():
             header = self.format_title(row).encode('utf8', 'replace')
             bars = '-' * len(header)
 
-            print bars
-            print header
-            print bars
-            print self.format_row(row).encode('utf8', 'replace')
-            print ''
+            printer(bars)
+            printer(header)
+            printer(bars)
+            printer(self.format_row(row).encode('utf8', 'replace'))
+            printer('')
 
 
 class TaskTimeEntrySummaryMixin(object):
@@ -40,8 +40,8 @@ class TaskTimeEntrySummaryMixin(object):
             TimeEntry,
             Task,
             fn.Sum(TimeEntry.duration).alias('total_time'),
-            fn.Min(TimeEntry.created_at).alias('first_date'),
-            fn.Max(TimeEntry.created_at).alias('last_date')
+            fn.Min(TimeEntry.started_at).alias('first_date'),
+            fn.Max(TimeEntry.started_at).alias('last_date')
         ).join(
             Task
         ).group_by(
@@ -57,12 +57,12 @@ class TaskTimeEntrySummaryMixin(object):
 
         if self.window.start_date is not None:
             qs = qs.where(
-                TimeEntry.created_at >= self.window.start_date
+                TimeEntry.started_at >= self.window.start_date
             )
 
         if self.window.end_date is not None:
             qs = qs.where(
-                TimeEntry.created_at <= self.window.end_date
+                TimeEntry.started_at <= self.window.end_date
             )
 
         return qs
@@ -96,7 +96,7 @@ class DaysByClientProjectTask(TaskTimeEntrySummaryMixin, Summary):
         Task.id,
         TimeEntry.project,
         TimeEntry.client,
-        TimeEntry.created_at_date,
+        TimeEntry.started_at_date,
     )
 
     def __init__(self, time_entry_window=None):
@@ -106,11 +106,11 @@ class DaysByClientProjectTask(TaskTimeEntrySummaryMixin, Summary):
         tasks = super(DaysByClientProjectTask, self).query_set()
 
         day_client_project_tasks = coalate(
-            tasks, by=['created_at_date', 'client', 'project'])
+            tasks, by=['started_at_date', 'client', 'project'])
         return day_client_project_tasks.values()
 
     def format_title(self, row):
-        return str(head(head(head(row))).created_at_date)
+        return str(head(head(head(row))).started_at_date)
 
     def format_row(self, row):
         formatted = []
@@ -135,39 +135,70 @@ class DaysByClientProjectTask(TaskTimeEntrySummaryMixin, Summary):
         return os.linesep.join(formatted)
 
 
-class WeeksByClientProject(TaskTimeEntrySummaryMixin, Summary):
-    aggregate_by = (
-        TimeEntry.client,
-        TimeEntry.project,
-        TimeEntry.created_at_week_ending_date
-    )
-
-    def __init__(self, time_entry_window=None):
-        self.window = time_entry_window.aligned_to_week_boundaries()
+class TimePeriodByClientProject(TaskTimeEntrySummaryMixin, Summary):
+    @property
+    def aggregate_by(self):
+        return (
+            self.time_period_field,
+            TimeEntry.client,
+            TimeEntry.project,
+        )
 
     def query_set(self):
-        tasks = super(WeeksByClientProject, self).query_set()
+        tasks = super(TimePeriodByClientProject, self).query_set()
+
+        aggregate_by_names = map(lambda field: field.name, self.aggregate_by)
 
         week_client_project_tasks = coalate(
-            tasks, by=['created_at_week_ending_date', 'client', 'project'])
+            tasks, by=aggregate_by_names)
         return week_client_project_tasks.values()
-
-    def format_title(self, row):
-        return 'Week Ending: ' + str(head(head(head(row))).created_at_week_ending_date)
 
     def format_row(self, row):
         formatted = []
 
-        for client_project_weeks in row.values():
-            week = head(head(head(client_project_weeks)))
-            formatted.append('  Client: %s' % week.client.organization)
+        for client_project_by_time_period in row.values():
+            time_period = head(head(head(client_project_by_time_period)))
+            formatted.append('  Client: %s' % time_period.client.organization)
 
-            for project_weeks in client_project_weeks.values():
-                week = head(head(project_weeks))
+            for project_by_time_period in client_project_by_time_period.values():
+                time_period = head(head(project_by_time_period))
+                hours = time_period.total_time / 60.0 / 60.0
                 formatted.append("""    Project: %s
       Total Time: %0.2f hours
+      Invoice Amount: %s
 """ % (
-                    week.project.title,
-                    week.total_time / 60.0 / 60.0))
+                    time_period.project.title,
+                    hours,
+                    currency(time_period.project.hourly_rate * hours, curr='$')))
 
         return os.linesep.join(formatted)
+
+
+class WeeksByClientProject(TimePeriodByClientProject, Summary):
+    time_period_field = TimeEntry.started_at_week_ending_date
+
+    def __init__(self, time_entry_window=None):
+        self.window = time_entry_window.aligned_to_week_boundaries()
+
+    def format_title(self, row):
+        return 'Week Ending: ' + str(head(head(head(row))).started_at_week_ending_date)
+
+
+class MonthsByClientProject(TimePeriodByClientProject, Summary):
+    time_period_field = TimeEntry.started_at_month_ending_date
+
+    def __init__(self, time_entry_window=None):
+        self.window = time_entry_window.aligned_to_month_boundaries()
+
+    def format_title(self, row):
+        return 'Month Ending: ' + str(head(head(head(row))).started_at_month_ending_date)
+
+
+class YearsByClientProject(TimePeriodByClientProject, Summary):
+    time_period_field = TimeEntry.started_at_year_ending_date
+
+    def __init__(self, time_entry_window=None):
+        self.window = time_entry_window.aligned_to_year_boundaries()
+
+    def format_title(self, row):
+        return 'Year Ending: ' + str(head(head(head(row))).started_at_year_ending_date)

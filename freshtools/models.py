@@ -3,7 +3,7 @@ from peewee import *
 from playhouse.kv import PickledKeyStore
 from refresh2.util import memoize, classproperty, safe_get
 from exceptions import *
-from date import local_from_utc_datetime, week_ending_datetime
+from date import local_from_utc_datetime, week_ending_datetime, month_ending_datetime, year_ending_datetime
 
 
 @memoize
@@ -179,12 +179,16 @@ class Project(BaseModel):
     business = ForeignKeyField(Business)
     client = ForeignKeyField(Client)
     title = CharField(default='')
+    type = CharField(default='', null=True)
+    rate = FloatField(default=0.0, null=True)
+    fixed_price = FloatField(default=0.0, null=True)
 
     display_fields = [
         ('id', 'Project ID: %s'),
         ('business', 'Business: %s'),
         ('client', 'Client: %s'),
         ('title', 'Project: %s'),
+        ('type', 'Type: %s'),
     ]
 
     @classmethod
@@ -199,9 +203,19 @@ class Project(BaseModel):
                         'business': business.info['id'],
                         'client': project['client_id'],
                         'title': project['title'],
+                        'type': project['project_type'],
+                        'rate': project['rate'],
+                        'fixed_price': project['fixed_price'],
                     })
 
         cls.upsert(projects)
+
+    @property
+    def hourly_rate(self):
+        if self.type == 'hourly_rate' and self.rate:
+            return self.rate
+        else:
+            return 0
 
     def __repr__(self):
         return self.title
@@ -255,6 +269,10 @@ class TimeEntry(BaseModel):
     started_at_date = DateField()
     created_at_week_ending_date = DateField()
     started_at_week_ending_date = DateField()
+    created_at_month_ending_date = DateField()
+    started_at_month_ending_date = DateField()
+    created_at_year_ending_date = DateField()
+    started_at_year_ending_date = DateField()
 
     duration = IntegerField()
     billed = BooleanField()
@@ -288,6 +306,12 @@ class TimeEntry(BaseModel):
                     created_at_week_ending_date = week_ending_datetime(created_at_date).date()
                     started_at_week_ending_date = week_ending_datetime(started_at_date).date()
 
+                    created_at_month_ending_date = month_ending_datetime(created_at_date).date()
+                    started_at_month_ending_date = month_ending_datetime(started_at_date).date()
+
+                    created_at_year_ending_date = year_ending_datetime(created_at_date).date()
+                    started_at_year_ending_date = year_ending_datetime(started_at_date).date()
+
                     entries.append({
                         'id': entry['id'],
                         'client': entry['client_id'],
@@ -296,9 +320,13 @@ class TimeEntry(BaseModel):
                         'created_at': created_at,
                         'created_at_date': created_at_date,
                         'created_at_week_ending_date': created_at_week_ending_date,
+                        'created_at_month_ending_date': created_at_month_ending_date,
+                        'created_at_year_ending_date': created_at_year_ending_date,
                         'started_at': started_at,
                         'started_at_date': started_at_date,
                         'started_at_week_ending_date': started_at_week_ending_date,
+                        'started_at_month_ending_date': started_at_month_ending_date,
+                        'started_at_year_ending_date': started_at_year_ending_date,
                         'duration': entry['duration'],
                         'billed': entry['billed'],
                         'billable': entry['billable'],

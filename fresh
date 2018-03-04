@@ -14,7 +14,9 @@ from freshtools.log import add_destination, list_destinations, remove_destinatio
 from freshtools.console import log_to_stdout
 from freshtools.date import (todays_date, n_days_ago_date, this_weeks_date,
                              n_weeks_ago_date, day_starting_and_ending_datetime,
-                             week_starting_and_ending_datetime)
+                             week_starting_and_ending_datetime, month_starting_and_ending_datetime,
+                             n_months_ago_date, this_months_date, year_starting_and_ending_datetime,
+                             this_years_date, n_years_ago_date)
 from refresh2.auth import DeveloperWebserverFlow, TokenStore, run_flow
 from refresh2.api import Api
 
@@ -98,7 +100,7 @@ def summarize():
 @click.option('--end', type=DateTimeParameter(), default=None, help='End date')
 def tasks_by_client(client, start, end):
     window = time_entry_window(client, start, end)
-    freshtools.summary.TasksByClient(window).print_report()
+    freshtools.summary.TasksByClient(window).print_report(printer)
 
 
 @summarize.command(aliases=['days'])
@@ -107,7 +109,7 @@ def tasks_by_client(client, start, end):
 @click.option('--end', type=DateTimeParameter(), default=None, help='End date')
 def days_by_client_project_task(client, start, end):
     window = time_entry_window(client, start, end)
-    freshtools.summary.DaysByClientProjectTask(window).print_report()
+    freshtools.summary.DaysByClientProjectTask(window).print_report(printer)
 
 
 @summarize.command(aliases=['weeks'])
@@ -116,49 +118,109 @@ def days_by_client_project_task(client, start, end):
 @click.option('--end', type=DateTimeParameter(), default=None, help='End date')
 def weeks_by_client_project(client, start, end):
     window = time_entry_window(client, start, end)
-    freshtools.summary.WeeksByClientProject(window).print_report()
+    freshtools.summary.WeeksByClientProject(window).print_report(printer)
+
+
+@summarize.command(aliases=['months'])
+@click.option('--client', default=None, help='Client name')
+@click.option('--start', type=DateTimeParameter(), default=None, help='Start date')
+@click.option('--end', type=DateTimeParameter(), default=None, help='End date')
+def months_by_client_project(client, start, end):
+    window = time_entry_window(client, start, end)
+    freshtools.summary.MonthsByClientProject(window).print_report(printer)
+
+
+@summarize.command(aliases=['years'])
+@click.option('--client', default=None, help='Client name')
+@click.option('--start', type=DateTimeParameter(), default=None, help='Start date')
+@click.option('--end', type=DateTimeParameter(), default=None, help='End date')
+def years_by_client_project(client, start, end):
+    window = time_entry_window(client, start, end)
+    freshtools.summary.YearsByClientProject(window).print_report(printer)
 
 
 @summarize.command()
 def today():
     start, end = day_starting_and_ending_datetime(todays_date())
     window = time_entry_window(start_date=start, end_date=end)
-    freshtools.summary.DaysByClientProjectTask(window).print_report()
+    freshtools.summary.DaysByClientProjectTask(window).print_report(printer)
 
 
 @summarize.command()
 def yesterday():
     start, end = day_starting_and_ending_datetime(n_days_ago_date(1))
     window = time_entry_window(start_date=start, end_date=end)
-    freshtools.summary.DaysByClientProjectTask(window).print_report()
+    freshtools.summary.DaysByClientProjectTask(window).print_report(printer)
 
 
 @summarize.command()
 def two_days_ago():
     start, end = day_starting_and_ending_datetime(n_days_ago_date(2))
     window = time_entry_window(start_date=start, end_date=end)
-    freshtools.summary.DaysByClientProjectTask(window).print_report()
+    freshtools.summary.DaysByClientProjectTask(window).print_report(printer)
 
 
 @summarize.command()
 def this_week():
-    start, end = week_starting_and_ending_datetime(this_weeks_date())
+    start, end = week_starting_and_ending_datetime(todays_date())
     window = time_entry_window(start_date=start, end_date=end)
-    freshtools.summary.WeeksByClientProject(window).print_report()
+    freshtools.summary.WeeksByClientProject(window).print_report(printer)
 
 
 @summarize.command()
 def last_week():
     start, end = week_starting_and_ending_datetime(n_weeks_ago_date(1))
     window = time_entry_window(start_date=start, end_date=end)
-    freshtools.summary.WeeksByClientProject(window).print_report()
+    freshtools.summary.WeeksByClientProject(window).print_report(printer)
 
 
 @summarize.command()
 def two_weeks_ago():
     start, end = week_starting_and_ending_datetime(n_weeks_ago_date(2))
     window = time_entry_window(start_date=start, end_date=end)
-    freshtools.summary.WeeksByClientProject(window).print_report()
+    freshtools.summary.WeeksByClientProject(window).print_report(printer)
+
+
+@summarize.command()
+def this_month():
+    start, end = month_starting_and_ending_datetime(todays_date())
+    window = time_entry_window(start_date=start, end_date=end)
+    freshtools.summary.MonthsByClientProject(window).print_report(printer)
+
+
+@summarize.command()
+def last_month():
+    start, end = month_starting_and_ending_datetime(n_months_ago_date(1))
+    window = time_entry_window(start_date=start, end_date=end)
+    freshtools.summary.MonthsByClientProject(window).print_report(printer)
+
+
+@summarize.command()
+def two_months_ago():
+    start, end = month_starting_and_ending_datetime(n_months_ago_date(2))
+    window = time_entry_window(start_date=start, end_date=end)
+    freshtools.summary.MonthsByClientProject(window).print_report(printer)
+
+
+@summarize.command()
+def this_year():
+    start, end = year_starting_and_ending_datetime(todays_date())
+    window = time_entry_window(start_date=start, end_date=end)
+    freshtools.summary.YearsByClientProject(window).print_report(printer)
+
+
+@summarize.command()
+def last_year():
+    start, end = year_starting_and_ending_datetime(n_years_ago_date(1))
+    window = time_entry_window(start_date=start, end_date=end)
+    freshtools.summary.YearsByClientProject(window).print_report(printer)
+
+
+@summarize.command()
+def two_years_ago():
+    start, end = year_starting_and_ending_datetime(n_years_ago_date(2))
+    window = time_entry_window(start_date=start, end_date=end)
+    freshtools.summary.YearsByClientProject(window).print_report(printer)
 
 
 #
