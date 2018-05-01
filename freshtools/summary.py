@@ -43,7 +43,7 @@ class TaskTimeEntrySummaryMixin(object):
             fn.Min(TimeEntry.started_at).alias('first_date'),
             fn.Max(TimeEntry.started_at).alias('last_date')
         ).join(
-            Task
+            Task, JOIN_LEFT_OUTER
         ).group_by(
             *self.aggregate_by
         ).order_by(
@@ -128,7 +128,7 @@ class DaysByClientProjectTask(TaskTimeEntrySummaryMixin, Summary):
       Total Time: %0.2f hours
       Billed: %s
 """ % (
-                        task.task.name,
+                        task.task.name if task.task else '<UNCATEGORIZED>',
                         task.total_time / 60.0 / 60.0,
                         'Yes' if task.billed else 'No'))
 
