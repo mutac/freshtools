@@ -10,7 +10,7 @@ http==0.2
 idna==2.6
 ipaddress==1.0.18
 itsdangerous==0.24
-Jinja2==2.10
+Jinja2==2.11.3
 MarkupSafe==1.0
 oauthlib==2.0.6
 pycparser==2.18
